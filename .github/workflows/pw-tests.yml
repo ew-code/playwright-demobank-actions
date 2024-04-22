@@ -11,7 +11,7 @@ permissions:
   checks: write
 
 jobs:
-  test:
+  run-smoke-tests:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
@@ -45,16 +45,64 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps
       - name: Run Playwright tests
-        run: npx playwright test
+        run: npx playwright test:smoke
       - name: Archive tests results
         if: success() || failure()
         uses: actions/upload-artifact@v3
         with:
-          name: test-report
+          name: test-reports-smoke-tests
           path: |
             playwright-report/**/*.*
             test-results/**/*.*
-      - name: Publish Test Report
+      - name: Publish smoke test report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure()
+        with:
+          report_paths: "./playwright-report/results.xml"
+  run-all-tests:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "npm"
+          registry-url: "https://npm.pkg.github.com"
+      - name: Get installed Playwright version
+        id: playwright-version
+        run: echo "PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package-lock.json').dependencies['@playwright/test'].version)")" >> $GITHUB_ENV
+      - name: Cache playwright binaries
+        uses: actions/cache@v3
+        id: playwright-cache
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Cache node_modules # STEP FOR NODE CACHE
+        uses: actions/cache@v3
+        id: node-cache
+        with:
+          path: |
+            node_modules
+          key: node_modules-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        if: steps.node-cache.outputs.cache-hit != 'true' # CHECK IF CACHE WAS RESTORED
+        run: npm ci
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps
+      - name: Run Playwright tests
+        run: npx playwright test:all
+      - name: Archive tests results
+        if: success() || failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-reports-all-tests
+          path: |
+            playwright-report/**/*.*
+            test-results/**/*.*
+      - name: Publish all test report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure()
         with:

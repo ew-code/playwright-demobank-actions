@@ -63,6 +63,7 @@ jobs:
           reporter: jest-junit
 
   test-all:
+    needs: [test-smoke]
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
